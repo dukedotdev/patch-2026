@@ -73,6 +73,11 @@ sections of the supplied INI and configure Tachyon if your operator requires it.
 
 ## Other information
 
+For Studio's **Test Subroom**, launch Rec Room and sign in first. The patch preserves
+local Maker Room, Rooms 2 and Studio test presence when a server heartbeat still
+names the previous online room. Returning to an online room resumes normal presence
+handling. This does not resolve missing or incompatible room save data.
+
 Developer and build guidance is in [AGENTS.md](AGENTS.md).
 
 Credits:

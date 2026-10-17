@@ -12,6 +12,7 @@
 #include <mutex>
 #include <intrin.h>
 #include "../../Utils/DesktopCapture.h"
+#include "../../Utils/LocalTestPresence.h"
 #include "../../Utils/ScreenShareWire.h"
 #include "../../Utils/Logging.h"
 #include "../Config.h"
@@ -81,6 +82,38 @@ namespace RR::Patches {
     static void (*resolveCaptureType)(void**) = nullptr;
     static void (*initializeClass)(void*) = nullptr;
     static void (*writeBarrier)(void**, void*) = nullptr;
+    static int32_t (*localAccountId)(void*) = nullptr;
+    static void* (*localPlayerPresence)(int32_t, void*) = nullptr;
+    static void (*heartbeatOriginal)(void*, void*) = nullptr;
+    static void (*heartbeatInvoke)(void*, void*) = nullptr;
+
+    static void ApplyHeartbeat(void* response, void* method) {
+        // Fingerprinted 20260323.14 WMGYGEVJQHF at 9500040 checks a local negative
+        // instance against a NULL server room (95001FB..9500228). A server-backed
+        // dorm returned while locally testing cancels the load or ejects the player.
+        // Project this field for local Maker Room (-3), Maker Room 2 (-4), or Studio (-5).
+        // Keep normal online presence, account checks and all other modes unchanged.
+        __try {
+            if (response && localAccountId && localPlayerPresence && writeBarrier) {
+                const int32_t playerId = localAccountId(nullptr);
+                if (playerId > 0) {
+                    const auto id = LocalTestPresence::Project(
+                        response, localPlayerPresence(playerId, nullptr), playerId, writeBarrier);
+                    static LONG reported = 0;
+                    if (id && InterlockedCompareExchange(&reported, 1, 0) == 0) {
+                        Log("[Studio] projected heartbeat for local test instance %lld", id);
+                    }
+                }
+            }
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            static LONG reported = 0;
+            if (InterlockedCompareExchange(&reported, 1, 0) == 0) {
+                Log("[Studio] local test heartbeat projection fault; continuing native handling");
+            }
+        }
+        // Keep native handling outside the override's fault guard.
+        heartbeatInvoke(response, method);
+    }
     static void* (*sendFriendRequest)(int32_t, int32_t, void*) = nullptr;
     static void* (*friendRequestOriginal)(void*, int32_t, int32_t, bool, void*) = nullptr;
     static void* FriendRequest(void* instance, int32_t playerId, int32_t source, bool showFeedback,
@@ -1016,6 +1049,22 @@ namespace RR::Patches {
             }
         } else {
             Log("[DesktopCapture] Windows capture initialization failed");
+        }
+        localAccountId = reinterpret_cast<decltype(localAccountId)>(
+            Gate(reinterpret_cast<void*>(game + RR::Methods::LocalTesting::LocalAccountId)));
+        localPlayerPresence = reinterpret_cast<decltype(localPlayerPresence)>(
+            Gate(reinterpret_cast<void*>(game + RR::Methods::LocalTesting::PlayerPresence)));
+        if (!localAccountId || !localPlayerPresence ||
+            !Hook(RR::Methods::LocalTesting::ApplyHeartbeat, reinterpret_cast<void*>(ApplyHeartbeat),
+                  reinterpret_cast<void**>(&heartbeatOriginal), "Matchmaking.LocalTestHeartbeat")) {
+            MH_Uninitialize();
+            return 5;
+        }
+        heartbeatInvoke =
+            reinterpret_cast<decltype(heartbeatInvoke)>(Gate(reinterpret_cast<void*>(heartbeatOriginal)));
+        if (!heartbeatInvoke) {
+            MH_Uninitialize();
+            return 5;
         }
         if (!Hook(RR::Methods::HTTP::SendRequest, reinterpret_cast<void*>(Send),
                   reinterpret_cast<void**>(&sendOriginal), "HTTPManager.SendRequest") ||

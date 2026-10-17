@@ -42,6 +42,14 @@ namespace RR::Methods::Uri {
     inline constexpr uintptr_t Constructor = 0xAC4EAC0;
 }
 
+namespace RR::Methods::LocalTesting {
+    // RecNet static methods: VPLUWCANMZA(), GUDYYSHFFKE(Int32),
+    // WMGYGEVJQHF(HeartbeatResponseDTO), each with hidden MethodInfo.
+    inline constexpr uintptr_t LocalAccountId = 0x9423480;
+    inline constexpr uintptr_t PlayerPresence = 0x94F74E0;
+    inline constexpr uintptr_t ApplyHeartbeat = 0x9500040;
+}
+
 namespace RR::Methods::Friends {
     inline constexpr uintptr_t SendRequest = 0x953F250;
     inline constexpr uintptr_t RequestWrapper = 0x2065C70;

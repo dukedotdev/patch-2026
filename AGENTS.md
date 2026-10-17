@@ -5,6 +5,10 @@ here. Read README.md, this file and the evidence beside a hook before changing
 native behavior. Technical maintenance guidance belongs in this file; README.md
 is for installation, configuration and troubleshooting by end users.
 
+This repository is the sole active patch source for the PR26 workspace. Use its
+build output for client testing. Retired private trees and historical snapshots
+are recovery material, not alternate development or installation baselines.
+
 ## What this is
 
 An injected Windows x64 DLL and standalone injector for Rec Room **20260323.14**.
@@ -561,3 +565,43 @@ validation used DXGI for 60/60 warm frames with stable GDI handles and valid JPE
 Prior live testing confirmed removal of the repeating hitch at native presets;
 the 60 FPS target has startup confirmation, without separate live-rate validation.
 Local test scripts, captures, traces, installed INIs and binaries are excluded.
+
+## Local Studio test presence (2026-10-14)
+
+The fingerprinted runtime schema identifies RecNet.Matchmaking.WMGYGEVJQHF at
+9500040 (HeartbeatResponseDTO, MethodInfo), Accounts.VPLUWCANMZA at 9423480
+(local account id), and Matchmaking.GUDYYSHFFKE at 94F74E0 (player presence).
+Disassembly at 95001FB..9500228 expects a NULL response RoomInstance when the
+current local instance id is negative. The server retains the preceding online
+room during local play; its non-null room triggers the out-of-sync correction.
+The game log confirmed local -3/-5 loads being cancelled/returned to the dorm.
+
+ApplyHeartbeat projects that single response pointer to null only for the matching
+online account in local Maker Room -3, Maker Room 2 -4, or Studio -5 with positive room/subroom ids.
+Normal instances, Orientation -2, other negative ids, offline responses and account
+mismatches pass through. Store null before notifying the managed write barrier; source
+presence and instance objects are untouched. The original heartbeat handler still
+runs through its Unity gate, preserving clock and other original handling.
+Methods/offsets are pinned to 20260323.14; do not carry them to another client.
+Local projection verification covers 92 cases and checks every other response byte,
+the barrier's store-before-notify order and unchanged source presence/instance objects.
+It includes null inputs, nonpositive account ids, room/subroom id boundaries,
+offline/mismatched responses and normal/unsupported instance ids.
+Build/startup checks do not establish that a scene stays open in interactive testing.
+
+The 2026-10-17 review checked these signatures and field layouts against the saved
+runtime schema and native disassembly. The override now guards its native calls
+and pointer projection with SEH, while the original heartbeat handler remains
+outside that guard and runs once. A nonpositive account id skips presence lookup.
+Success/fault notices use separate atomic once-only flags; a projection notice
+does not establish that a scene loaded successfully. Formatting, native package
+build and the 92-case local check passed. This reviewed build has not been
+installed or interactively tested, and remains unpublished.
+
+Rooms 2 log evidence identifies local MAKER_ROOM_2 as instance -4. The same
+negative-instance heartbeat contract applies during its bootstrap, so -4 is included.
+The independent Rooms 2 error 8718 occurs in ObjectModelRoomScope.VPDQGQJOTAG:
+13F1C3F..13F1C55 dereferences SubRoomDTO.CurrentSave (+40) and reads OMVersion
+(+54). A null initial save fails before spawning; version zero is rejected as an
+obsolete experimental format. The supported client reports current OM format 198
+(9934F20). Repair the server creation/save metadata; do not suppress this loader error.

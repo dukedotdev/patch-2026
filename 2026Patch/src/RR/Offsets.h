@@ -8,6 +8,17 @@
 // describe different objects; do not merge them into a generic shared offset.
 // The cast at each use supplies the measured field width/reference type.
 
+namespace RR::Offsets::LocalTesting {
+    // PlayerPresence fields, also inherited by HeartbeatResponseDTO.
+    inline constexpr uintptr_t PlayerId = 0x10;
+    inline constexpr uintptr_t PresenceRoomInstance = 0x28;
+    inline constexpr uintptr_t IsOnline = 0x44;
+    // RoomInstance fields; all three identifiers are signed Int64.
+    inline constexpr uintptr_t InstanceId = 0x10;
+    inline constexpr uintptr_t RoomId = 0x18;
+    inline constexpr uintptr_t SubRoomId = 0x20;
+}
+
 namespace RR::Offsets::AccountModel {
     inline constexpr uintptr_t Relationship = 0x120;
     inline constexpr uintptr_t Id = 0x290;
