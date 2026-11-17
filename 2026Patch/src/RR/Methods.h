@@ -119,6 +119,7 @@ namespace RR::Methods::Session {
 }
 
 namespace RR::Methods::Circuits {
+    inline constexpr uintptr_t NewPlayerPropertyTypeRead = 0x2E8733F;
     inline constexpr uintptr_t RemoveFunction = 0x114FEB0;
 }
 

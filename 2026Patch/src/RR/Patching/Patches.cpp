@@ -923,6 +923,30 @@ namespace RR::Patches {
         }
         return result == MH_OK;
     }
+    static bool FixPlayerPropertyTypeRead() {
+        // LXRDRHIETAO allocates a player definition in the state at +21D0,
+        // then incorrectly reads the room definition types at +20C8 with that ID.
+        // CustomPropertiesState._PropertyDefinitionTypes is +38 (unboxed), so
+        // the corresponding player field is +2208. Keep the native allocation,
+        // default-signal conversion, per-player initialization and notifications.
+        const unsigned char expected[] = {0x49, 0x8D, 0x8E, 0xC8, 0x20, 0, 0};
+        const unsigned char corrected[] = {0x49, 0x8D, 0x8E, 0x08, 0x22, 0, 0};
+        auto target = reinterpret_cast<void*>(game + RR::Methods::Circuits::NewPlayerPropertyTypeRead);
+        if (memcmp(target, expected, sizeof(expected))) {
+            Log("[Circuits] player property type-read instruction mismatch");
+            return false;
+        }
+        DWORD old = 0;
+        if (!VirtualProtect(target, sizeof(corrected), PAGE_EXECUTE_READWRITE, &old)) {
+            return false;
+        }
+        memcpy(target, corrected, sizeof(corrected));
+        FlushInstructionCache(GetCurrentProcess(), target, sizeof(corrected));
+        DWORD ignored = 0;
+        const bool restored = VirtualProtect(target, sizeof(corrected), old, &ignored) != 0;
+        Log("[Circuits] player property type read corrected to player definitions");
+        return restored;
+    }
     DWORD Initialize(const RR::Config::Settings& settings) {
         // main.cpp has validated this snapshot and the loaded fingerprints. Copy
         // configuration before resolving or enabling callbacks; initialization
@@ -1210,6 +1234,10 @@ namespace RR::Patches {
         // All function pointers, configuration and endpoint preparation are now
         // complete. Apply queued hooks together. A failed apply is reported; the
         // return value must not be interpreted as a transactional rollback guarantee.
+        if (!FixPlayerPropertyTypeRead()) {
+            MH_Uninitialize();
+            return 5;
+        }
         auto result = MH_ApplyQueued();
         Log("[Build] hooks enabled status=%d", result);
         const bool hookReady = result == MH_OK;
